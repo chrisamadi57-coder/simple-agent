@@ -1,0 +1,1 @@
+A minimal AI agent built from scratch in Python. Unlike a plain chatbot, this agent can decide when to call a Python tool (calculator, word counter, etc.), run it, and use the result to answer. Built with the OpenAI Python SDK — no agent frameworks, just the core loop.
