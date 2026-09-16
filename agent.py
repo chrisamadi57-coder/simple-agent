@@ -3,18 +3,19 @@ agent.py
 
 The agent: sends messages to the model, runs any tools the model requests,
 feeds results back, and returns the final answer.
+
+Optional `on_tool_call` callback lets a UI display tool activity.
 """
 
 import json
 import os
+from typing import Callable, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 
 from tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
 
 load_dotenv()
-
-# --- Client setup (works for OpenAI or OpenRouter) ------------------------
 
 _base_url = os.getenv("OPENAI_BASE_URL") or None
 client = OpenAI(base_url=_base_url) if _base_url else OpenAI()
@@ -28,11 +29,20 @@ SYSTEM_PROMPT = (
 )
 
 
-def run_agent(messages: list) -> str:
+def run_agent(
+    messages: list,
+    on_tool_call: Optional[Callable[[str, dict, str], None]] = None,
+) -> str:
     """
-    Given a message history (list of dicts), run the agent loop until
-    the model produces a final text answer (no more tool calls).
-    Returns the assistant's final text reply.
+    Run the agent loop until the model produces a final text answer.
+
+    Args:
+        messages: The message history (list of dicts). Mutated in place.
+        on_tool_call: Optional callback(name, args, result) invoked for each
+                      tool execution. Used by UIs to display activity.
+
+    Returns:
+        The assistant's final text reply.
     """
     while True:
         response = client.chat.completions.create(
@@ -44,9 +54,7 @@ def run_agent(messages: list) -> str:
 
         msg = response.choices[0].message
 
-        # Case 1: The model wants to call one or more tools.
         if msg.tool_calls:
-            # Append the assistant message (with tool_calls) to history.
             messages.append({
                 "role": "assistant",
                 "content": msg.content,
@@ -63,7 +71,6 @@ def run_agent(messages: list) -> str:
                 ],
             })
 
-            # Run each requested tool and append the result as a tool message.
             for tc in msg.tool_calls:
                 fn_name = tc.function.name
                 raw_args = tc.function.arguments or "{}"
@@ -82,7 +89,9 @@ def run_agent(messages: list) -> str:
                     except Exception as e:
                         result = f"Error running {fn_name}: {e}"
 
-                print(f"  [tool] {fn_name}({args}) -> {result}")
+                # Notify the UI, if any
+                if on_tool_call:
+                    on_tool_call(fn_name, args, str(result))
 
                 messages.append({
                     "role": "tool",
@@ -90,15 +99,12 @@ def run_agent(messages: list) -> str:
                     "content": str(result),
                 })
 
-            # Loop again: send the updated history back to the model.
             continue
 
-        # Case 2: The model produced a final text answer.
         reply = msg.content or ""
         messages.append({"role": "assistant", "content": reply})
         return reply
 
 
 def new_conversation() -> list:
-    """Start a fresh conversation history with the system prompt."""
     return [{"role": "system", "content": SYSTEM_PROMPT}]
