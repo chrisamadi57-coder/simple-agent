@@ -93,14 +93,7 @@ if user_input:
             with st.expander(f"🔧 {len(tool_events)} tool call(s)"):
                 for t in tool_events:
                     st.markdown(
-                        f"**10:45
-
-Challenges
-
-Roman Numeral Converter
-Intermediate
-
-Merge Overlapping Intervals`{t['name']}`**  \n"
+                        f"**`{t['name']}`**  \n"
                         f"Args: `{t['args']}`  \n"
                         f"Result: `{t['result']}`"
                     )
